@@ -238,4 +238,117 @@ Terminal commands
 Last updated: Session 3: 14/05/26
 ================================================
 
+================================================
+SESSION 3 ADDITIONS
+================================================
 
+git rev-parse --show-toplevel
+Prints the exact path of the root folder Git is currently tracking.
+Useful for confirming which project folder Git is pointed at.
+
+
+------------------------------------------------
+PUSHING CHANGES TO GITHUB — STEP BY STEP
+------------------------------------------------
+
+Step 1 — Stage the files you want to upload:
+    git add .                  (stages everything changed)
+    git add filename.py        (stages one specific file)
+
+Step 2 — Save a snapshot with a description:
+    git commit -m "describe what you changed"
+
+Step 3 — Upload to GitHub:
+    git push
+
+Tip: run git status before step 1 to see exactly what has changed.
+
+
+------------------------------------------------
+REVERTING CHANGES IN GIT
+------------------------------------------------
+
+See all previous commits and their IDs:
+    git log --oneline
+
+Undo the last commit safely (recommended if already pushed):
+    git revert HEAD
+
+Revert to a specific previous commit (safe, adds an undo commit):
+    git revert a1b2c3d        (replace with your commit ID)
+
+Nuclear option — wipe everything back to a commit (destructive!):
+    git reset --hard a1b2c3d
+
+Golden rule:
+  • Already pushed to GitHub → use git revert (safe, preserves history)
+  • Not yet pushed → use git reset (cleaner but destructive)
+
+
+------------------------------------------------
+WHERE DOES PIP INSTALL PACKAGES TO?
+------------------------------------------------
+
+With (venv) active, packages install into your project's virtual environment:
+    C:\Users\timfo\Documents\doc-intelligence-app\venv\Lib\site-packages\
+
+This keeps packages isolated to this project only — not installed globally.
+Always make sure (venv) is active before running pip install.
+
+Check where a package installed and its version:
+    pip show package-name
+
+
+------------------------------------------------
+LLM FRAMEWORKS vs LLM PROVIDERS
+------------------------------------------------
+
+LangChain is not an LLM — it is a framework that sits on top of LLMs.
+
+LangChain alternatives (frameworks):
+  • LangChain    — most popular, lots of tools and integrations (what we use)
+  • LlamaIndex   — similar but more focused on RAG and document retrieval
+  • Haystack     — open source, good for production search pipelines
+  • DSPy         — newer, more programmatic approach to prompt engineering
+
+LLM providers (the actual models):
+  • OpenAI       — gpt-4o, gpt-4o-mini (what we use — reliable, easy API)
+  • Anthropic    — Claude Sonnet, Claude Opus (strong reasoning)
+  • HuggingFace  — thousands of free open source models, runs locally
+  • Google       — Gemini 1.5, Gemini 2.0 (strong, good context window)
+  • Meta         — Llama 3 (open source, runs completely locally for free)
+  • Mistral      — lightweight, good for local use
+
+
+------------------------------------------------
+HUGGINGFACE vs OPENAI COMPARISON
+------------------------------------------------
+
+To be built into the A/B testing phase of the project.
+Plan: run the same document and questions through both a HuggingFace
+model and GPT-4o-mini, log results in MLflow, and compare quality,
+speed, and cost. Great portfolio talking point.
+
+
+------------------------------------------------
+FUTURE PROJECT IDEA — JOB DESCRIPTION ANALYSER
+------------------------------------------------
+
+Build a web scraping tool that pulls job descriptions from Indeed
+and LinkedIn into a database, then uses RAG to analyse patterns
+across job titles.
+
+Example use case: "What skills do data engineer roles typically
+require?" — the RAG system searches across hundreds of job descriptions
+and returns a synthesised answer.
+
+Skills demonstrated:
+  • Web scraping
+  • Database design
+  • RAG pipeline
+  • NLP and text analysis
+  • Practical career tool
+
+================================================
+End of Session 3 notes
+================================================
