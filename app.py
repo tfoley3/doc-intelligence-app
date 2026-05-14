@@ -21,37 +21,44 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # creates the OpenAI clien
 
 def answer_question(extracted_text, question):
     # sends the document text and user question to OpenAI and returns an answer
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",  # fast and cheap model, perfect for testing
-        messages=[
-            {
-                "role": "system",  # sets the behaviour of the AI
-                "content": "You are a helpful assistant that answers questions about documents. Only answer based on the document content provided. If the answer is not in the document, say so."
-            },
-            {
-                "role": "user",  # the actual question from the user
-                "content": f"Document content:\n{extracted_text}\n\nQuestion: {question}"
-            }
-        ]
-    )
-    return response.choices[0].message.content  # extracts just the text response
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # fast and cheap model, perfect for testing
+            messages=[
+                {
+                    "role": "system",  # sets the behaviour of the AI
+                    "content": "You are a helpful assistant that answers questions about documents. Only answer based on the document content provided. If the answer is not in the document, say so."
+                },
+                {
+                    "role": "user",  # the actual question from the user
+                    "content": f"Document content:\n{extracted_text}\n\nQuestion: {question}"
+                }
+            ]
+        )
+        return response.choices[0].message.content  # extracts just the text response
+    except Exception as e: 
+        return f"Sorry, I couldn't get an answer from OpenAI: {str(e)}" # graceful failure
+    
 
 def summarise_document(extracted_text):
     # sends the document to OpenAI and asks for a concise summary
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",  # same model as our Q&A function
-        messages=[
-            {
-                "role": "system",  # instructs the AI how to behave
-                "content": "You are a helpful assistant that summarises documents. Provide a clear and concise summary with the key points highlighted."
-            },
-            {
-                "role": "user",  # the actual request
-                "content": f"Please summarise the following document:\n\n{extracted_text}"
-            }
-        ]
-    )
-    return response.choices[0].message.content  # extracts just the text response
+    try: 
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # same model as our Q&A function
+            messages=[
+                {
+                    "role": "system",  # instructs the AI how to behave
+                    "content": "You are a helpful assistant that summarises documents. Provide a clear and concise summary with the key points highlighted."
+                },
+                {
+                    "role": "user",  # the actual request
+                    "content": f"Please summarise the following document:\n\n{extracted_text}"
+                }
+            ]
+        )
+        return response.choices[0].message.content  # extracts just the text response
+    except Exception as e:
+        return f"Sorry, I couldn't generate a summary: {str(e)}" # graceful failure
 
 
 
@@ -77,12 +84,27 @@ uploaded_file = st.file_uploader(
 
 
 if uploaded_file is not None:  # only run the code below if a file has been uploaded
-    st.success(f"File uploaded: {uploaded_file.name}")  # show a green success message with the filename
+    # check file size - reject anything over 10MB 
+    if uploaded_file.size > 10 * 1024 * 1024: # 10MB in bytes 
+        st.error("File is too large - please upload a file under 10MB")
+    else: 
+        st.success(f"File uploaded: {uploaded_file.name}") # show a green success message with the filename
     
-    with st.spinner("Extracting text from document..."):  # show a loading spinner while processing
-        file_bytes = uploaded_file.read()  # read the file into bytes
-        extracted_text = process_document(file_bytes, uploaded_file.name)  # pass to our processing engine
-    
+    try:
+        with st.spinner("Extracting text from document..."):
+            file_bytes = uploaded_file.read()
+            extracted_text = process_document(file_bytes, uploaded_file.name)
+        
+        # check if any text was actually extracted
+        if not extracted_text.strip():
+            st.error("No text could be extracted from this document. It may be blank or corrupted.")
+            st.stop()  # halt execution — no point continuing with empty text
+                
+    except Exception as e:
+        st.error(f"Something went wrong reading the document: {str(e)}")
+        st.stop()  # halt execution   
+
+
     st.subheader("Extracted Text")  # section heading
     st.text_area("", extracted_text, height=300)  # display extracted text in a scrollable box
 
