@@ -5,6 +5,7 @@
 import streamlit as st  # web app framework for building the UI
 from src.document_processor import process_document  # our document processing engine
 from src.rag_processor import chunk_text, embed_and_store, retrieve_relevant_chunks # RAG functions
+from src.ab_testing import run_ab_test # A/B testing function
 
 
 ######################################## Connect to OpenAI ###########################################################
@@ -126,6 +127,38 @@ if uploaded_file is not None:  # only run the code below if a file has been uplo
         st.subheader("Summary") #section heading 
         st.write(summary) # display the summary
 
+
+    st.subheader("A/B Model Comparison")  # section heading
+    st.write("Test two models on the same question and compare results.")  # description
+    
+    ab_question = st.text_input(
+        "Enter a question to test across models:",  # label
+        key="ab_question"  # unique key needed since we have two text inputs
+    )
+    
+    if st.button("Run A/B Test"):  # button to trigger the test
+        if ab_question:  # only run if a question has been entered
+            with st.spinner("Running A/B test across models..."):
+                results = run_ab_test(ab_question, extracted_text)  # run the test
+            
+            # display results side by side
+            col1, col2 = st.columns(2)  # create two columns
+            
+            with col1:  # left column — gpt-4o-mini results
+                st.markdown("### gpt-4o-mini")
+                st.write(results["gpt-4o-mini"]["answer"])
+                st.metric("Response time", f"{results['gpt-4o-mini']['response_time']}s")
+                st.metric("Tokens used", results["gpt-4o-mini"]["token_count"])
+            
+            with col2:  # right column — gpt-3.5-turbo results
+                st.markdown("### gpt-3.5-turbo")
+                st.write(results["gpt-3.5-turbo"]["answer"])
+                st.metric("Response time", f"{results['gpt-3.5-turbo']['response_time']}s")
+                st.metric("Tokens used", results["gpt-3.5-turbo"]["token_count"])
+            
+            st.success("Results logged to MLflow!")
+        else:
+            st.warning("Please enter a question first.")  # prompt if no question entered
     
     
     # initialise chat history in session state if it doesn't exist yet
