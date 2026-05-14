@@ -1,0 +1,241 @@
+ML/AI Engineering — Learning Reference Document
+Document Intelligence App Project
+================================================
+
+About this document
+This document captures all the key concepts, tools, and techniques encountered while building the Document Intelligence App. It is designed as a personal reference to refresh your memory between sessions — written in plain English, with analogies and explanations matched to how you naturally understood each concept during the build.
+
+
+================================================
+1. THE TECH STACK
+================================================
+
+Python
+The core programming language used throughout the project. It is the dominant language in ML and AI engineering. Version 3.11 is used for this project as it is the most stable for ML libraries.
+
+Streamlit
+A Python library that lets you build browser-based apps without needing to know HTML, CSS, or JavaScript. Every visual element (buttons, file uploaders, text boxes) is created with a single line of Python starting with st. — for example st.button() or st.text_input().
+
+FastAPI
+A Python framework for building APIs — essentially the backend plumbing that allows different parts of an application to talk to each other over the web. Not yet used in the app but installed for future development.
+
+PyMuPDF (fitz)
+A library for reading PDF files. Confusingly it is imported as fitz rather than pymupdf. It can extract selectable text directly from a PDF page, or convert a page into a pixel image for OCR processing.
+
+Tesseract OCR + pytesseract
+Tesseract is an OCR (Optical Character Recognition) engine — software that looks at an image and reads the text in it. Originally developed by HP in the 1980s, then open sourced by Google.
+pytesseract is the Python wrapper — a thin layer of Python code that communicates with the Tesseract program installed on your machine. Think of it as:
+  • pytesseract = the steering wheel
+  • Tesseract = the actual engine
+
+Pillow (PIL)
+A Python imaging library used to open and manipulate image files. We import just the Image class from it — note the capital I is essential, as Python imports are case sensitive.
+
+OpenAI API
+Allows our Python code to send requests to OpenAI's language models (we use gpt-4o-mini) and receive responses. The API key is stored in a .env file and loaded securely using python-dotenv — it is never hardcoded in the Python files and never uploaded to GitHub.
+
+LangChain
+A framework for building applications that use large language models. It provides tools for chaining together prompts, managing memory, connecting to vector databases, and building RAG pipelines. We will make more use of this in the RAG phase.
+
+ChromaDB
+A vector database — a database specifically designed for storing and searching embeddings (numerical representations of text meaning). Used in the RAG phase to store document chunks and find the most relevant ones when a question is asked.
+
+MLflow
+A tool for tracking ML experiments. It logs which model, prompts, and settings were used for each run, and lets you compare results visually. We will use it in the A/B testing phase to compare different models and prompts.
+
+venv (virtual environment)
+A self-contained Python environment for a specific project. It keeps all the libraries for this project isolated from other Python projects on your machine, preventing version conflicts.
+Activated with: venv\Scripts\activate
+You know it is active when you see (venv) at the start of your terminal prompt.
+
+
+================================================
+2. KEY PYTHON CONCEPTS
+================================================
+
+Imports
+Python imports load external libraries or specific parts of them into your script. Three common patterns:
+  • import fitz — imports the whole library
+  • from PIL import Image — imports just the Image class from PIL
+  • import streamlit as st — imports streamlit and gives it the alias st for convenience
+
+Imports are case sensitive — from PIL import image (lowercase) would fail because the class is called Image with a capital I.
+
+Functions
+Defined with def, a function is a reusable block of code that takes inputs (parameters) and returns an output. In our app, process_document(file_bytes, filename) is the front door function that routes files to the right handler. Functions must be defined above the code that calls them — Python reads top to bottom.
+
+f-strings
+A way of embedding variables directly inside strings. The f before the opening quote activates it, and variables go inside curly braces. For example: f"File uploaded: {uploaded_file.name}" inserts the filename directly into the string at runtime.
+
+Context managers (with)
+The with keyword is used to wrap a block of code with setup and teardown actions. It is not a function — it is a Python keyword called a context manager.
+
+In our app we use it for spinners:
+    with st.spinner("Thinking..."):
+
+This starts the spinner animation, runs the indented code, then stops the spinner automatically when done — even if something goes wrong. Without with you would have to start and stop it manually.
+
+PEP 8 naming conventions
+PEP 8 is Python's official style guide. The key naming conventions:
+  • Classes: PascalCase — e.g. Image, DataFrame
+  • Functions and variables: lowercase_with_underscores — e.g. extract_text, file_bytes
+  • Constants: ALL_CAPS — e.g. MAX_SIZE
+
+Comments
+Comments start with # and are ignored by Python — they are for human readers only. The golden rule:
+  • Comment the WHY, not the WHAT
+  • Good:  # normalise case so .PDF and .pdf are treated the same
+  • Bad:   # convert to lowercase  (this just repeats what the code says)
+
+python -c
+Runs a small snippet of Python code directly from the terminal without creating a file. Useful for quick sanity checks, for example:
+    python -c "import streamlit; print('ok')"
+
+
+================================================
+3. HOW THE DOCUMENT PROCESSOR WORKS
+================================================
+
+The file document_processor.py is the engine of the app. It has three functions that work together:
+
+extract_text_from_pdf
+Opens a PDF page by page. For each page it first tries to extract text directly (fast, works on normal PDFs with selectable text). If a page returns no text — meaning it is a scanned image — it converts that page into a pixel image and runs OCR on it using Tesseract.
+
+extract_text_from_image
+Takes an image file (PNG, JPG etc.) and runs OCR on it directly using Tesseract. Simpler than the PDF function as there is no page loop — it is just one image straight into Tesseract.
+
+process_document
+The front door that the rest of the app calls. It reads the file extension to decide which of the two functions above to use, then returns the extracted text. Think of it like a post sorting office — it reads the address on the envelope and routes it to the right handler.
+
+
+================================================
+4. STREAMLIT SESSION STATE
+================================================
+
+Every time you interact with a Streamlit app — clicking a button, typing in a box — the entire Python script reruns from top to bottom. This means any variables created during that run get wiped.
+
+st.session_state is a special dictionary that persists between reruns. Anything stored in it survives the page refresh.
+
+Think of it like this:
+  • Normal variables = writing on a whiteboard that gets wiped every few seconds
+  • st.session_state = writing in a notebook that stays open on the desk
+
+We use it to store chat history — each question and answer is appended to a list in session_state, so the full conversation remains visible even as Streamlit reruns the script.
+
+
+================================================
+5. RAG — RETRIEVAL AUGMENTED GENERATION
+================================================
+
+The problem RAG solves
+Without RAG, the app sends the entire document to OpenAI every time a question is asked. This causes three problems:
+  • Cost — OpenAI charges per token (roughly per word). Sending a 100 page document with every question gets expensive fast.
+  • Context limits — models can only handle a certain amount of text in one go. Very large documents simply will not fit.
+  • Accuracy — dumping everything into one prompt can confuse the model. It is better to give it only the relevant section.
+
+How RAG works
+RAG translates the entire document into vectors — one vector for each semantically significant chunk (a paragraph or section). A vector is just a list of numbers that mathematically represents the meaning of that chunk of text. This means thousands of vectors, all stored in ChromaDB.
+
+When a question arrives, it gets converted into a vector in exactly the same way. The system then finds the document chunks whose vectors are closest to the question vector — these are the most semantically relevant sections. Only those sections get sent to OpenAI along with the question.
+
+Comparing vectors is extremely fast and cheap. The expensive OpenAI call only happens once at the end, with a fraction of the original text.
+
+The full RAG pipeline
+  1. Split document into chunks
+  2. Embed all chunks — convert each one into a vector
+  3. Store vectors in ChromaDB
+  4. Embed the incoming question the same way
+  5. Find the closest matching chunks via cosine similarity
+  6. Send only those chunks to OpenAI with the question
+  7. Return the answer
+
+Cosine similarity
+The matching algorithm that finds the most relevant chunks. Vectors are lists of numbers that represent meaning in multi-dimensional space — similar meanings end up pointing in similar directions. Cosine similarity measures the angle between two vectors. The smaller the angle, the more similar the meaning.
+
+For example, the vectors for "What is the revenue?" and "Total annual income figures" would point in very similar directions even though they use completely different words — because they mean similar things. This is the key advantage over simple keyword search.
+
+The textbook analogy
+Imagine you have a 500 page textbook and someone asks you a question. You do not re-read the whole book — you think about which chapter is relevant, flick to that section, and answer from there. RAG does exactly that, mathematically.
+
+Why RAG matters for your CV
+RAG is arguably the most in-demand skill in AI engineering right now. Almost every company building on top of LLMs uses it. Being able to implement it from scratch — and explain clearly why it is needed — puts you ahead of many candidates.
+
+
+================================================
+6. GIT AND GITHUB
+================================================
+
+What is Git?
+Git is a tool that tracks changes to your code over time. Think of it like a really powerful track changes in Word — except it works across your entire project and never forgets anything.
+
+What is GitHub?
+GitHub is a website that hosts your Git history online. It is like Google Drive but specifically designed for code. It lets you back up your code, share it with others, and show employers your work.
+
+Key terms
+  • Repository (repo) — your project folder, tracked by Git
+  • Commit — a saved snapshot of your code at a point in time
+  • Push — upload your commits to GitHub
+  • Pull — download changes from GitHub to your machine
+  • Branch — a separate copy of your code to work on safely
+  • Clone — download someone else's repo to your machine
+
+The daily workflow
+  • git add .              — stage all changes (put items in a box)
+  • git commit -m "..."   — save a snapshot (seal the box with a label)
+  • git push              — upload to GitHub (send the box)
+
+Use git status before every commit to see exactly what has changed and what is staged.
+
+The .gitignore file
+A file that tells Git which files and folders to ignore and never upload. Always include:
+  venv/
+  .env
+  __pycache__/
+  *.pyc
+
+This prevents your API key (.env) and virtual environment (venv) from being pushed to GitHub.
+
+
+================================================
+7. ENVIRONMENT AND TOOLING
+================================================
+
+Anaconda vs venv
+Anaconda is a distribution of Python — Python with about 250 data science libraries pre-installed. It uses conda as its package manager, which can install both Python packages and system-level dependencies.
+
+For this project we use venv (Python's built-in environment tool) and pip instead. This is simpler, lighter, and what most professional ML engineers use for projects that do not require complex system-level dependencies.
+
+VS Code shortcuts
+  • Ctrl + `           — open the terminal
+  • Ctrl + Shift + P   — open the command palette
+  • Shift + Enter      — run selected code in the Python terminal
+  • Ctrl + C           — stop whatever is running in the terminal
+  • Ctrl + S           — save the current file
+  • Windows key + .    — open the emoji picker (works anywhere in Windows)
+  • Always use Command Prompt (not PowerShell) for Python work
+
+Terminal commands
+  • type nul > filename.py        — create an empty file
+  • mkdir foldername              — create a new folder
+  • where python                  — shows where Python is installed
+  • command1 && command2          — run two commands in sequence
+  • streamlit run app.py          — start the app (http://localhost:8501)
+
+
+================================================
+8. PROJECT ROADMAP — WHAT IS NEXT
+================================================
+
+  • ChromaDB and RAG — semantic search across the document        [NEXT]
+  • A/B testing with MLflow — compare models and prompts          [NEXT]
+  • Error handling — gracefully handle failures
+  • Multiple document support
+  • Docker — containerise the app
+  • Cloud deployment — get it live on a public URL
+
+
+================================================
+Last updated: Session 3: 14/05/26
+================================================
+
+
