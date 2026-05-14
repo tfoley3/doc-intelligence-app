@@ -4,7 +4,7 @@
 
 import streamlit as st  # web app framework for building the UI
 from src.document_processor import process_document  # our document processing engine
-
+from src.rag_processor import chunk_text, embed_and_store, retrieve_relevant_chunks # RAG functions
 
 
 ######################################## Connect to OpenAI ###########################################################
@@ -31,6 +31,23 @@ def answer_question(extracted_text, question):
             {
                 "role": "user",  # the actual question from the user
                 "content": f"Document content:\n{extracted_text}\n\nQuestion: {question}"
+            }
+        ]
+    )
+    return response.choices[0].message.content  # extracts just the text response
+
+def summarise_document(extracted_text):
+    # sends the document to OpenAI and asks for a concise summary
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",  # same model as our Q&A function
+        messages=[
+            {
+                "role": "system",  # instructs the AI how to behave
+                "content": "You are a helpful assistant that summarises documents. Provide a clear and concise summary with the key points highlighted."
+            },
+            {
+                "role": "user",  # the actual request
+                "content": f"Please summarise the following document:\n\n{extracted_text}"
             }
         ]
     )
@@ -69,17 +86,65 @@ if uploaded_file is not None:  # only run the code below if a file has been uplo
     st.subheader("Extracted Text")  # section heading
     st.text_area("", extracted_text, height=300)  # display extracted text in a scrollable box
 
+    # Process document for RAG as soon as it is uploaded
+    # But only chunk and embed if we haven't already done it for this document
+    if "rag_processed" not in st.session_state:
+        with st.spinner("Processing document for RAG..."):  # spinner while chunking and embedding 
+            chunks = chunk_text(extracted_text)             # split into chunks
+            embed_and_store(chunks)                         # embed and store in ChromaDB
+            st.session_state.rag_processed = True # flag so we don't repeat this
+            st.session_state.chunk_count = len(chunks) # store chunk count for display
+            
+        st.success(f"Document processed into {len(chunks)} chunks from RAG search") # confirmation message
+
+
+    if st.button("Summarise Document"): #creates a clickable button
+        with st.spinner("Summarising..."): #spinner while waiting for OpenAI
+            summary = summarise_document(extracted_text) #call our summarise function
+        st.subheader("Summary") #section heading 
+        st.write(summary) # display the summary
+
+    
+    
+    # initialise chat history in session state if it doesn't exist yet
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
     st.subheader("Ask a Question")  # section heading
-    
-    question = st.text_input("Type your question about the document here:")  # text input box
-    
+
+    # Toggle between basic Q&A and RAG 
+    use_rag = st.toggle(
+        "Use RAG (recommended for large documents)", # label
+        value=True # default to RAG on 
+    )
+
+    # display all previous messages in the conversation
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):  # renders as user or assistant bubble
+            st.write(message["content"])  # display the message content
+
+    # chat input box at the bottom
+    question = st.chat_input("Type your question about the document here...")
+
     if question:  # only run if the user has typed a question
-        with st.spinner("Thinking..."):  # show spinner while waiting for OpenAI response
-            answer = answer_question(extracted_text, question)  # call our Q&A function
+        # add user question to chat history
+        st.session_state.messages.append({"role": "user", "content": question})
         
-        st.subheader("Answer")  # section heading
-        st.write(answer)  # display the answer
+        with st.chat_message("user"):  # display user message bubble
+            st.write(question)
+
+        with st.spinner("Thinking..."):  # spinner while waiting for OpenAI
+            if use_rag: # use RAG if toggle is on
+                context = retrieve_relevant_chunks(question) # get relevant chunks 
+                answer = answer_question(context, question) # answer only using relevant chunks
+            else: # use basic Q&A if toggle is off
+                answer = answer_question(extracted_text, question)  # call our Q&A function
+        
+        # add AI answer to chat history
+        st.session_state.messages.append({"role": "assistant", "content": answer})
+        
+        with st.chat_message("assistant"):  # display assistant message bubble
+            st.write(answer)  # display the answer
 
     
 
