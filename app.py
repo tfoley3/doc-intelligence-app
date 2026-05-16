@@ -142,7 +142,7 @@ if uploaded_file is not None:  # only run the code below if a file has been uplo
                 results = run_ab_test(ab_question, extracted_text)  # run the test
             
             # display results side by side
-            col1, col2 = st.columns(2)  # create two columns
+            col1, col2, col3 = st.columns(3)  # create three columns
             
             with col1:  # left column — gpt-4o-mini results
                 st.markdown("### gpt-4o-mini")
@@ -150,12 +150,18 @@ if uploaded_file is not None:  # only run the code below if a file has been uplo
                 st.metric("Response time", f"{results['gpt-4o-mini']['response_time']}s")
                 st.metric("Tokens used", results["gpt-4o-mini"]["token_count"])
             
-            with col2:  # right column — gpt-3.5-turbo results
+            with col2:  # middle column — gpt-3.5-turbo results
                 st.markdown("### gpt-3.5-turbo")
                 st.write(results["gpt-3.5-turbo"]["answer"])
                 st.metric("Response time", f"{results['gpt-3.5-turbo']['response_time']}s")
                 st.metric("Tokens used", results["gpt-3.5-turbo"]["token_count"])
             
+            with col3:  # right column — distilgpt2 (local)
+                st.markdown("### DistilGPT-2 (local)")
+                st.write(results["distilgpt2"]["answer"])
+                st.metric("Response time", f"{results['distilgpt2']['response_time']}s")
+                st.metric("Cost", "Free - runs locally")
+
             st.success("Results logged to MLflow!")
         else:
             st.warning("Please enter a question first.")  # prompt if no question entered
