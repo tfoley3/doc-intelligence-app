@@ -482,3 +482,90 @@ Skills demonstrated:
 ================================================
 End of Session 4 & 5 notes
 ================================================
+
+
+================================================
+SESSION 6 ADDITIONS
+================================================
+
+MULTIPLE DOCUMENT SUPPORT
+------------------------------------------------
+st.file_uploader accept_multiple_files=True — enables multiple uploads.
+Documents stored in a dictionary: filename as key, text as value.
+Combined with "\n\n---\n\n".join() separator for RAG processing.
+Each document summarised individually to avoid context window issues.
+A/B test uses RAG chunks instead of raw text — fairer and avoids 
+context window overflow.
+
+st.expander — creates a collapsible section per document. Cleaner UI
+than one giant text area when handling multiple files.
+
+
+------------------------------------------------
+DOCKER
+------------------------------------------------
+
+What is Docker:
+Packages your entire app — code, Python version, libraries, config —
+into a self-contained unit called a container. Works identically on 
+any machine regardless of what's installed on it.
+
+Dockerfile — the recipe for building the container.
+.dockerignore — tells Docker what to exclude (venv, .env, mlruns etc.)
+requirements.txt — list of all Python libraries Docker installs.
+
+Key commands:
+  • docker build --no-cache -t doc-intelligence-app .
+    → builds the image from scratch, tags it as doc-intelligence-app
+  • docker run -p 8501:8501 --env-file .env doc-intelligence-app
+    → runs the container, maps port 8501, injects API key from .env
+
+The recipe analogy:
+"If the Dockerfile is a recipe, docker build is the act of cooking it,
+and the resulting image is the finished dish ready to be served."
+
+The full build command in plain English:
+"Build a Docker image from scratch using the Dockerfile in my current
+folder, and call it doc-intelligence-app."
+
+Why localhost:
+Container runs on your machine — localhost means "this machine".
+-p 8501:8501 opens a door between your laptop and the container.
+To get a public URL, deploy to a cloud platform like Railway.
+
+
+------------------------------------------------
+TERMINAL CONCEPTS
+------------------------------------------------
+
+| pipe operator:
+Redirects output of one command as input to the next.
+Fundamental in Linux/DevOps. Example:
+    pip freeze | findstr langchain
+    (lists all libraries, filters to only show langchain ones)
+
+findstr /v:
+Windows equivalent of Linux grep. /v inverts the match — returns
+all lines that do NOT contain the search term. Example:
+    pip freeze | findstr /v pywin32 > requirements.txt
+    (writes all libraries except pywin32 to requirements.txt)
+
+--env-file .env:
+Passes environment variables from .env file into Docker container.
+Keeps API keys out of terminal history. Professional best practice.
+    docker run -p 8501:8501 --env-file .env doc-intelligence-app
+
+
+------------------------------------------------
+FUTURE FEATURES
+------------------------------------------------
+
+Multimodal vision support:
+If uploaded image contains no text, route to GPT-4o vision model
+instead of OCR. Detect text vs image content automatically.
+Makes the app truly multimodal — significant portfolio enhancement.
+
+================================================
+End of Session 6 notes
+================================================
+
