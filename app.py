@@ -75,57 +75,75 @@ st.title("📄 Document Intelligence App")  # main heading displayed on the page
 st.write("Upload a document to extract text and ask questions about it.")  # subtitle
 
 
-uploaded_file = st.file_uploader(
-    "Choose a file",  # label displayed above the upload button
-    type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp"]  # restricts uploads to supported file types
+uploaded_files = st.file_uploader(
+    "Choose one or more files",  # label displayed above the upload button
+    type=["pdf", "png", "jpg", "jpeg", "tiff", "bmp"],  # restricts uploads to supported file types
+    accept_multiple_files=True # enables multiple file selection
 )
 
 
 ################################# Ask Q and Embed AI answer into the Streamlit UI ###################################
 
 
-if uploaded_file is not None:  # only run the code below if a file has been uploaded
-    # check file size - reject anything over 10MB 
-    if uploaded_file.size > 10 * 1024 * 1024: # 10MB in bytes 
-        st.error("File is too large - please upload a file under 10MB")
-    else: 
-        st.success(f"File uploaded: {uploaded_file.name}") # show a green success message with the filename
-    
+if uploaded_files:  # only run the code below if at least one file has been uploaded
+    # check each file size - reject anything over 10MB 
+    oversized = [f.name for f in uploaded_files if f.size > 10 * 1024 * 1024]
+    if oversized:
+        st.error(f"These filesa re too large (max 10MB): {', '.join(oversized)}")
+    else:
+        st.success(f"{len(uploaded_files)} file(s) uploaded: {', '.join([f.name for f in uploaded_files])}")
+
     try:
-        with st.spinner("Extracting text from document..."):
-            file_bytes = uploaded_file.read()
-            extracted_text = process_document(file_bytes, uploaded_file.name)
+        with st.spinner("Extracting text from all documents..."):
+            all_text = {}  # dictionary to store text from each file
+            for f in uploaded_files:  # loop through each uploaded file
+                file_bytes = f.read()  # read the file into bytes
+                text = process_document(file_bytes, f.name)  # extract text
+                if text.strip():  # only add if text was actually extracted
+                    all_text[f.name] = text  # store with filename as key
+                else:
+                    st.warning(f"Could not extract text from {f.name} — skipping.")
         
-        # check if any text was actually extracted
-        if not extracted_text.strip():
-            st.error("No text could be extracted from this document. It may be blank or corrupted.")
-            st.stop()  # halt execution — no point continuing with empty text
-                
+        if not all_text:  # if no text was extracted from any file
+            st.error("No text could be extracted from any of the uploaded documents.")
+            st.stop()
+        
+        # combine all text for display and Q&A
+        extracted_text = "\n\n---\n\n".join(all_text.values())  # join with separator
+        
     except Exception as e:
-        st.error(f"Something went wrong reading the document: {str(e)}")
-        st.stop()  # halt execution   
+        st.error(f"Something went wrong reading the documents: {str(e)}")
+        st.stop() 
 
 
-    st.subheader("Extracted Text")  # section heading
-    st.text_area("", extracted_text, height=300)  # display extracted text in a scrollable box
+    st.subheader("Extracted Text")
+    
+    # show each document's text in its own expander
+    for filename, text in all_text.items():
+        with st.expander(f"📄 {filename}"):  # collapsible section per document
+            st.text_area("", text, height=200, key=filename)  # unique key per file
+    
+    # only chunk and embed if the set of documents has changed
+    current_files = sorted([f.name for f in uploaded_files])  # sorted list of filenames
+    if "rag_processed" not in st.session_state or st.session_state.get("processed_files") != current_files:
+        with st.spinner("Processing all documents for RAG..."):
+            chunks = chunk_text(extracted_text)  # chunk the combined text
+            embed_and_store(chunks)
+            st.session_state.rag_processed = True
+            st.session_state.chunk_count = len(chunks)
+            st.session_state.processed_files = current_files  # remember which files were processed
+    
+    st.success(f"{len(all_text)} document(s) processed into {st.session_state.chunk_count} chunks for RAG search")
 
-    # Process document for RAG as soon as it is uploaded
-    # But only chunk and embed if we haven't already done it for this document
-    if "rag_processed" not in st.session_state:
-        with st.spinner("Processing document for RAG..."):  # spinner while chunking and embedding 
-            chunks = chunk_text(extracted_text)             # split into chunks
-            embed_and_store(chunks)                         # embed and store in ChromaDB
-            st.session_state.rag_processed = True # flag so we don't repeat this
-            st.session_state.chunk_count = len(chunks) # store chunk count for display
-            
-        st.success(f"Document processed into {len(chunks)} chunks from RAG search") # confirmation message
-
-
-    if st.button("Summarise Document"): #creates a clickable button
-        with st.spinner("Summarising..."): #spinner while waiting for OpenAI
-            summary = summarise_document(extracted_text) #call our summarise function
-        st.subheader("Summary") #section heading 
-        st.write(summary) # display the summary
+    if st.button("Summarise Document(s)"): #creates a clickable button
+        for filename, text in all_text.items(): #loop through each document
+            with st.spinner(f"Summarising {filename}..."): #spinner while waiting for OpenAI
+                try:
+                    summary = summarise_document(text) #call our summarise function
+                    st.subheader(f"Summary - {filename}") #section heading 
+                    st.write(summary) # display the summary
+                except Exception as e:
+                    st.error(f"Could not summarise {filename}: {str(e)}")
 
 
     st.subheader("A/B Model Comparison")  # section heading
@@ -139,7 +157,8 @@ if uploaded_file is not None:  # only run the code below if a file has been uplo
     if st.button("Run A/B Test"):  # button to trigger the test
         if ab_question:  # only run if a question has been entered
             with st.spinner("Running A/B test across models..."):
-                results = run_ab_test(ab_question, extracted_text)  # run the test
+                ab_context = retrieve_relevant_chunks(ab_question)  # get relevant chunks only
+                results = run_ab_test(ab_question, ab_context)  # run the test
             
             # display results side by side
             col1, col2, col3 = st.columns(3)  # create three columns
