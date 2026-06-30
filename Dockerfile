@@ -28,3 +28,6 @@ EXPOSE 8501
 
 # command to run the app
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+
+# https://railway.com/dashboard
+# doc-intelligence-app-production.up.railway.app
