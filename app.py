@@ -112,7 +112,7 @@ if uploaded_files:  # only run the code below if at least one file has been uplo
     # check each file size - reject anything over 10MB 
     oversized = [f.name for f in uploaded_files if f.size > 10 * 1024 * 1024]
     if oversized:
-        st.error(f"These filesa re too large (max 10MB): {', '.join(oversized)}")
+        st.error(f"These files are too large (max 10MB): {', '.join(oversized)}")
     else:
         st.success(f"{len(uploaded_files)} file(s) uploaded: {', '.join([f.name for f in uploaded_files])}")
 
